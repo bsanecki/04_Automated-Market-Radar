@@ -362,7 +362,7 @@ def send_to_discord(article):
     response.raise_for_status()
 
 
-def process_source(articles, source_name, known_state, sent_ids_by_source, seed_only):
+def process_source(articles, source_name, known_state, sent_ids_by_source):
     already_sent = set(known_state.get(source_name, []))
     new_ids = []
 
@@ -375,9 +375,8 @@ def process_source(articles, source_name, known_state, sent_ids_by_source, seed_
         if not is_recent_enough(article):
             continue
 
-        if not seed_only:
-            send_to_discord(article)
-            time.sleep(1)
+        send_to_discord(article)
+        time.sleep(1)
 
         new_ids.append(article_id)
 
@@ -388,14 +387,6 @@ def process_source(articles, source_name, known_state, sent_ids_by_source, seed_
 def main():
     print("Wczytuję aktualny stan z repozytorium (GitHub Contents API)...")
     known_state, _ = load_remote_state()
-
-    seed_only = known_state == {}
-
-    if seed_only:
-        print(
-            "Nie znaleziono istniejącego stanu — tryb startowy (seed): "
-            "zapisuję obecne artykuły jako znane, BEZ wysyłki na Discord."
-        )
 
     sent_ids_by_source = {}
     total_new = 0
@@ -413,7 +404,7 @@ def main():
             articles = fetch_fn()
             print(f"  Znaleziono pozycji dot. Syn2bio: {len(articles)}")
             total_new += process_source(
-                articles, source_name, known_state, sent_ids_by_source, seed_only
+                articles, source_name, known_state, sent_ids_by_source
             )
         except Exception as error:
             print(f"  Błąd źródła '{source_name}': {error}")
@@ -421,10 +412,7 @@ def main():
     print("Zapisuję stan...")
     persist_sent_ids(sent_ids_by_source)
 
-    if seed_only:
-        print(f"Zapisano {total_new} pozycji jako punkt startowy (bez wysyłki).")
-    else:
-        print(f"Nowych informacji wysłanych: {total_new}")
+    print(f"Nowych informacji wysłanych: {total_new}")
 
 
 if __name__ == "__main__":
