@@ -5,6 +5,10 @@ on:
     - cron: '0 * * * *'
   workflow_dispatch:
 
+concurrency:
+  group: synektik-monitor
+  cancel-in-progress: false
+
 jobs:
   check-synektik:
     runs-on: ubuntu-latest
@@ -15,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -22,22 +28,29 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 feedparser
+        run: |
+          pip install requests beautifulsoup4 feedparser
 
       - name: Run Synektik monitor
         env:
           SYNEKTIK_WEBHOOK: ${{ secrets.SYNEKTIK_WEBHOOK }}
-        run: python scripts/synektik.py
+        run: |
+          python scripts/synektik.py
 
       - name: Save state
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git pull --rebase origin main
-
           git add synektik_state.json
 
-          git diff --cached --quiet || git commit -m "Update Synektik news state"
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update Synektik news state"
+
+          git pull --rebase origin main
 
           git push
