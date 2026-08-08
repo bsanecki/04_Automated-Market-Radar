@@ -1,0 +1,29 @@
+name: Bitcoin News & Price Monitor
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: bitcoin-monitor
+  cancel-in-progress: false
+jobs:
+  check-bitcoin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+      - name: Run Bitcoin monitor
+        env:
+          BITCOIN_WEBHOOK: ${{ secrets.BITCOIN_WEBHOOK }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/bitcoin.py
