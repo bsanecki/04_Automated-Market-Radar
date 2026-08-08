@@ -222,19 +222,26 @@ def _get_bankier_page_articles(url, source_label, is_official, description):
             full_text
         )
 
-        if not date_match:
+        if date_match:
+            date = date_match.group(0)
+            # tytuł/opis w kartach Bankiera bywa sklejony razem z datą w
+            # jednym <a> - odcinamy samą datę z przodu tekstu.
+            title = full_text[len(date):].strip(" :-") or full_text
+        else:
             container = link_tag.find_parent(["li", "div"]) or link_tag.parent
             container_text = container.get_text(" ", strip=True) if container else ""
             date_match = ISO_DATE_PATTERN.search(
                 container_text
             ) or DATE_PATTERN.search(container_text)
-            date = date_match.group(0) if date_match else "Brak daty"
-            title = full_text
-        else:
+
+            if not date_match:
+                # Brak daty w pobliżu = to nie jest pozycja z listy newsów
+                # o spółce, tylko np. link z bocznego panelu "Najpopularniejsze
+                # na rynkach" (inne, niepowiązane artykuły). Pomijamy.
+                continue
+
             date = date_match.group(0)
-            # tytuł/opis w kartach Bankiera bywa sklejony razem z datą w
-            # jednym <a> - odcinamy samą datę z przodu tekstu.
-            title = full_text[len(date):].strip(" :-") or full_text
+            title = full_text
 
         if not title:
             continue
