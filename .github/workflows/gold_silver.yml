@@ -1,0 +1,29 @@
+name: Gold & Silver News Monitor
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: gold-silver-monitor
+  cancel-in-progress: false
+jobs:
+  check-gold-silver:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+      - name: Run Gold & Silver monitor
+        env:
+          GOLD_SILVER_WEBHOOK: ${{ secrets.GOLD_SILVER_WEBHOOK }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/gold_silver.py
