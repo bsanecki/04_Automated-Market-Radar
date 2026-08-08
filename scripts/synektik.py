@@ -29,6 +29,8 @@ HTTP_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SynektikMonitor/1.0)"}
 SYNEKTIK_URL = "https://synektik.com.pl/centrum-inwestora/raporty-biezace/"
 BANKIER_GIELDA_RSS = "https://www.bankier.pl/rss/gielda.xml"
 BANKIER_ESPI_RSS = "https://www.bankier.pl/rss/espi.xml"
+PAP_MEDIAROOM_URL = "https://pap-mediaroom.pl/taxonomy/term/10911"
+PAP_MEDIAROOM_BASE = "https://pap-mediaroom.pl"
 
 MAX_IDS_PER_SOURCE = 300
 MAX_SAVE_RETRIES = 5
@@ -37,6 +39,8 @@ CUTOFF_YEAR = 2026
 NAME_PATTERN = re.compile(r"\bsynektik\b", re.IGNORECASE)
 TICKER_PATTERN = re.compile(r"\bSNT\b")
 YEAR_PATTERN = re.compile(r"(20\d{2})")
+DATE_PATTERN = re.compile(r"\d{2}\.\d{2}\.\d{4},?\s*\d{2}:\d{2}")
+PAP_LINK_PATTERN = re.compile(r"^/biznes-i-finanse/synektik-sa-", re.IGNORECASE)
 
 
 def extract_year(text):
@@ -238,6 +242,63 @@ def get_bankier_espi_articles():
     )
 
 
+def get_pap_mediaroom_reports():
+    """
+    Strona tagowa PAP MediaRoom dla Synektik SA – już przefiltrowana do
+    samej spółki (taxonomy/term/10911), więc nie trzeba dopasowywać słów
+    kluczowych. Sprawdzamy tylko pierwszą stronę (najnowsze wpisy).
+    """
+    response = requests.get(PAP_MEDIAROOM_URL, timeout=20, headers=HTTP_HEADERS)
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    main = soup.find(id="main-content") or soup
+
+    reports = []
+    seen_links = set()
+
+    for link_tag in main.find_all("a", href=True):
+        href = link_tag["href"]
+
+        if not PAP_LINK_PATTERN.match(href):
+            continue
+
+        link = href if href.startswith("http") else PAP_MEDIAROOM_BASE + href
+
+        if link in seen_links:
+            continue
+
+        seen_links.add(link)
+
+        title = link_tag.get_text(" ", strip=True)
+
+        if not title:
+            continue
+
+        # Data jest w tekście najbliższego kontenera-rodzica (element listy).
+        container = link_tag.find_parent(["li", "div"]) or link_tag.parent
+        container_text = container.get_text(" ", strip=True) if container else ""
+
+        date_match = DATE_PATTERN.search(container_text)
+        date = date_match.group(0) if date_match else "Brak daty"
+
+        reports.append(
+            {
+                "id": link,
+                "title": title,
+                "date": date,
+                "year": extract_year(date),
+                "source": "PAP MediaRoom – ESPI",
+                "description": "Oficjalny komunikat ESPI (PAP MediaRoom).",
+                "link": link,
+                "is_official": True,
+            }
+        )
+
+    return reports
+
+
 def send_to_discord(article):
     description = article.get("description", "")
 
@@ -307,6 +368,7 @@ def main():
         ("synektik", "Sprawdzam Synektik – Centrum Inwestora...", get_synektik_reports),
         ("bankier_gielda", "Sprawdzam Bankier.pl (Giełda)...", get_bankier_gielda_articles),
         ("bankier_espi", "Sprawdzam Bankier.pl (ESPI)...", get_bankier_espi_articles),
+        ("pap_mediaroom", "Sprawdzam PAP MediaRoom (Synektik)...", get_pap_mediaroom_reports),
     ]
 
     for source_name, log_message, fetch_fn in sources:
