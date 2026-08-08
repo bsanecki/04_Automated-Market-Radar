@@ -32,9 +32,21 @@ BANKIER_ESPI_RSS = "https://www.bankier.pl/rss/espi.xml"
 
 MAX_IDS_PER_SOURCE = 300
 MAX_SAVE_RETRIES = 5
+CUTOFF_YEAR = 2026
 
 NAME_PATTERN = re.compile(r"\bsynektik\b", re.IGNORECASE)
 TICKER_PATTERN = re.compile(r"\bSNT\b")
+YEAR_PATTERN = re.compile(r"(20\d{2})")
+
+
+def extract_year(text):
+    match = YEAR_PATTERN.search(text or "")
+    return int(match.group(1)) if match else None
+
+
+def is_recent_enough(article):
+    year = article.get("year")
+    return year is None or year >= CUTOFF_YEAR
 
 
 def is_about_synektik(title, description=""):
@@ -164,6 +176,7 @@ def get_synektik_reports():
                 "id": link,
                 "title": title,
                 "date": date,
+                "year": extract_year(date),
                 "source": "Synektik S.A. – Centrum Inwestora",
                 "description": "Oficjalny raport / komunikat spółki.",
                 "link": link,
@@ -192,11 +205,15 @@ def _parse_bankier_rss(feed_url, source_label, is_official):
 
         date = entry.get("published", "") or entry.get("updated", "") or "Brak daty"
 
+        parsed_time = entry.get("published_parsed") or entry.get("updated_parsed")
+        year = parsed_time.tm_year if parsed_time else extract_year(date)
+
         articles.append(
             {
                 "id": link,
                 "title": title,
                 "date": date,
+                "year": year,
                 "source": source_label,
                 "description": description,
                 "link": link,
@@ -256,6 +273,9 @@ def process_source(articles, source_name, known_state, sent_ids_by_source, seed_
         article_id = article["id"]
 
         if not article_id or article_id in already_sent:
+            continue
+
+        if not is_recent_enough(article):
             continue
 
         if not seed_only:
