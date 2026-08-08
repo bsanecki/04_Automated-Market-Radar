@@ -2,7 +2,7 @@ name: Synektik News Monitor
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -19,17 +19,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
       - name: Install dependencies
-        run: |
-          pip install requests beautifulsoup4
+        run: pip install requests beautifulsoup4
 
       - name: Run Synektik monitor
         env:
           SYNEKTIK_WEBHOOK: ${{ secrets.SYNEKTIK_WEBHOOK }}
-        run: |
-          python scripts/synektik.py
+        run: python scripts/synektik.py
 
       - name: Save state
         run: |
