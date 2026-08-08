@@ -4,7 +4,6 @@ import os
 import re
 import time
 
-import feedparser
 import requests
 from bs4 import BeautifulSoup
 
@@ -27,20 +26,23 @@ GH_HEADERS = {
 HTTP_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SynektikMonitor/1.0)"}
 
 SYNEKTIK_URL = "https://synektik.com.pl/centrum-inwestora/raporty-biezace/"
-BANKIER_GIELDA_RSS = "https://www.bankier.pl/rss/gielda.xml"
-BANKIER_ESPI_RSS = "https://www.bankier.pl/rss/espi.xml"
 PAP_MEDIAROOM_URL = "https://pap-mediaroom.pl/taxonomy/term/10911"
 PAP_MEDIAROOM_BASE = "https://pap-mediaroom.pl"
+BANKIER_BASE = "https://www.bankier.pl"
+BANKIER_KOMUNIKATY_URL = "https://www.bankier.pl/gielda/notowania/akcje/SYNEKTIK/komunikaty"
+BANKIER_WIADOMOSCI_URL = "https://www.bankier.pl/gielda/notowania/akcje/SYNEKTIK/wiadomosci"
 
 MAX_IDS_PER_SOURCE = 300
 MAX_SAVE_RETRIES = 5
 CUTOFF_YEAR = 2026
 
-NAME_PATTERN = re.compile(r"\bsynektik\b", re.IGNORECASE)
-TICKER_PATTERN = re.compile(r"\bSNT\b")
 YEAR_PATTERN = re.compile(r"(20\d{2})")
 DATE_PATTERN = re.compile(r"\d{2}\.\d{2}\.\d{4},?\s*\d{2}:\d{2}")
-PAP_LINK_PATTERN = re.compile(r"^/biznes-i-finanse/synektik-sa-", re.IGNORECASE)
+ISO_DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}")
+# Dopasowuje href zarówno względny (/biznes-i-finanse/...), jak i pełny
+# (https://pap-mediaroom.pl/biznes-i-finanse/...) - stąd search(), nie match().
+PAP_LINK_PATTERN = re.compile(r"/biznes-i-finanse/synektik-sa-", re.IGNORECASE)
+BANKIER_ARTICLE_PATTERN = re.compile(r"/wiadomosc/.+-\d+\.html", re.IGNORECASE)
 
 
 def extract_year(text):
@@ -51,11 +53,6 @@ def extract_year(text):
 def is_recent_enough(article):
     year = article.get("year")
     return year is None or year >= CUTOFF_YEAR
-
-
-def is_about_synektik(title, description=""):
-    text = f"{title} {description}"
-    return bool(NAME_PATTERN.search(text)) or bool(TICKER_PATTERN.search(text))
 
 
 def load_remote_state():
@@ -191,33 +188,66 @@ def get_synektik_reports():
     return reports
 
 
-def _parse_bankier_rss(feed_url, source_label, is_official):
-    feed = feedparser.parse(feed_url)
+def _get_bankier_page_articles(url, source_label, is_official, description):
+    """
+    Wspólny parser dla podstron Bankier.pl dedykowanych spółce Synektik
+    (komunikaty ESPI/EBI oraz wiadomości) - obie strony są już
+    przefiltrowane do samej spółki, więc nie trzeba dopasowywać słów
+    kluczowych. Sprawdzamy tylko pierwszą (najnowszą) stronę wyników.
+    """
+    response = requests.get(url, timeout=20, headers=HTTP_HEADERS)
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
     articles = []
+    seen_links = set()
 
-    for entry in feed.entries:
-        title = entry.get("title", "")
-        raw_description = entry.get("summary", "")
-        link = entry.get("link", "")
+    for link_tag in soup.find_all("a", href=True):
+        href = link_tag["href"]
 
-        description = BeautifulSoup(raw_description, "html.parser").get_text(
-            " ", strip=True
-        )
-
-        if not is_about_synektik(title, description):
+        if not BANKIER_ARTICLE_PATTERN.search(href):
             continue
 
-        date = entry.get("published", "") or entry.get("updated", "") or "Brak daty"
+        link = href if href.startswith("http") else BANKIER_BASE + href
 
-        parsed_time = entry.get("published_parsed") or entry.get("updated_parsed")
-        year = parsed_time.tm_year if parsed_time else extract_year(date)
+        if link in seen_links:
+            continue
+
+        seen_links.add(link)
+
+        full_text = link_tag.get_text(" ", strip=True)
+
+        date_match = ISO_DATE_PATTERN.search(full_text) or DATE_PATTERN.search(
+            full_text
+        )
+
+        if not date_match:
+            container = link_tag.find_parent(["li", "div"]) or link_tag.parent
+            container_text = container.get_text(" ", strip=True) if container else ""
+            date_match = ISO_DATE_PATTERN.search(
+                container_text
+            ) or DATE_PATTERN.search(container_text)
+            date = date_match.group(0) if date_match else "Brak daty"
+            title = full_text
+        else:
+            date = date_match.group(0)
+            # tytuł/opis w kartach Bankiera bywa sklejony razem z datą w
+            # jednym <a> - odcinamy samą datę z przodu tekstu.
+            title = full_text[len(date):].strip(" :-") or full_text
+
+        if not title:
+            continue
+
+        if len(title) > 180:
+            title = title[:180].rsplit(" ", 1)[0] + "..."
 
         articles.append(
             {
                 "id": link,
                 "title": title,
                 "date": date,
-                "year": year,
+                "year": extract_year(date),
                 "source": source_label,
                 "description": description,
                 "link": link,
@@ -228,17 +258,21 @@ def _parse_bankier_rss(feed_url, source_label, is_official):
     return articles
 
 
-def get_bankier_gielda_articles():
-    return _parse_bankier_rss(
-        BANKIER_GIELDA_RSS, "Bankier.pl – Giełda", is_official=False
+def get_bankier_komunikaty_articles():
+    return _get_bankier_page_articles(
+        BANKIER_KOMUNIKATY_URL,
+        "Bankier.pl – Komunikaty spółki (ESPI/EBI)",
+        is_official=True,
+        description="Oficjalny komunikat ESPI/EBI spółki Synektik.",
     )
 
 
-def get_bankier_espi_articles():
-    return _parse_bankier_rss(
-        BANKIER_ESPI_RSS,
-        "Bankier.pl / ESPI – raport bieżący spółki",
-        is_official=True,
+def get_bankier_wiadomosci_articles():
+    return _get_bankier_page_articles(
+        BANKIER_WIADOMOSCI_URL,
+        "Bankier.pl – Wiadomości spółki",
+        is_official=False,
+        description="Wiadomość dotycząca spółki Synektik (Bankier.pl).",
     )
 
 
@@ -261,7 +295,7 @@ def get_pap_mediaroom_reports():
     for link_tag in main.find_all("a", href=True):
         href = link_tag["href"]
 
-        if not PAP_LINK_PATTERN.match(href):
+        if not PAP_LINK_PATTERN.search(href):
             continue
 
         link = href if href.startswith("http") else PAP_MEDIAROOM_BASE + href
@@ -366,8 +400,8 @@ def main():
 
     sources = [
         ("synektik", "Sprawdzam Synektik – Centrum Inwestora...", get_synektik_reports),
-        ("bankier_gielda", "Sprawdzam Bankier.pl (Giełda)...", get_bankier_gielda_articles),
-        ("bankier_espi", "Sprawdzam Bankier.pl (ESPI)...", get_bankier_espi_articles),
+        ("bankier_komunikaty", "Sprawdzam Bankier.pl (Komunikaty ESPI/EBI)...", get_bankier_komunikaty_articles),
+        ("bankier_wiadomosci", "Sprawdzam Bankier.pl (Wiadomości)...", get_bankier_wiadomosci_articles),
         ("pap_mediaroom", "Sprawdzam PAP MediaRoom (Synektik)...", get_pap_mediaroom_reports),
     ]
 
