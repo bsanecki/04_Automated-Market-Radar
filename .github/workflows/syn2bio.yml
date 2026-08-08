@@ -1,0 +1,29 @@
+name: Syn2bio News Monitor
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: syn2bio-monitor
+  cancel-in-progress: false
+jobs:
+  check-syn2bio:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+      - name: Run Syn2bio monitor
+        env:
+          SYN2BIO_WEBHOOK: ${{ secrets.SYN2BIO_WEBHOOK }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/syn2bio.py
