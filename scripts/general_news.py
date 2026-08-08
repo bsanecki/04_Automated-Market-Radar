@@ -3,6 +3,7 @@ import json
 import os
 import re
 import time
+from datetime import date, datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -58,6 +59,11 @@ CATEGORY_SPLIT_PATTERN = re.compile(
 
 MAX_IDS = 500
 MAX_SAVE_RETRIES = 5
+
+# Pokazujemy tylko wiadomości od 1 sierpnia 2026 włącznie.
+CUTOFF_DATE = date(2026, 8, 1)
+
+DATE_PATTERN = re.compile(r'"datePublished"\s*:\s*"([^"]+)"')
 
 
 def load_remote_state():
@@ -200,13 +206,63 @@ def get_xtb_articles():
     return articles
 
 
-def send_to_discord(article):
+def parse_iso_date(value):
+    if not value:
+        return None
+
+    try:
+        cleaned = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(cleaned).date()
+    except ValueError:
+        return None
+
+
+def fetch_published_date(link):
+    """
+    Data publikacji nie jest widoczna wprost na liście (tylko nagłówki
+    "Dzisiaj"/"Wczoraj" + godzina), więc dla każdego NOWEGO artykułu
+    wchodzimy na jego stronę i czytamy datePublished z danych
+    strukturalnych (JSON-LD) lub z meta article:published_time.
+    """
+    response = requests.get(link, timeout=15, headers=HTTP_HEADERS)
+    response.raise_for_status()
+
+    match = DATE_PATTERN.search(response.text)
+
+    if match:
+        return parse_iso_date(match.group(1))
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    meta = soup.find("meta", property="article:published_time")
+
+    if meta and meta.get("content"):
+        return parse_iso_date(meta["content"])
+
+    return None
+
+
+def is_recent_enough(published_date):
+    # Brak możliwości ustalenia daty -> wolimy pokazać niż zgubić wpis.
+    return published_date is None or published_date >= CUTOFF_DATE
+
+
+def send_to_discord(article, published_date):
+    date_text = published_date.strftime("%d.%m.%Y") if published_date else None
+
+    when_line = ""
+    if date_text and article["time"]:
+        when_line = f"📅 **Data:** {date_text}, {article['time']}\n"
+    elif date_text:
+        when_line = f"📅 **Data:** {date_text}\n"
+    elif article["time"]:
+        when_line = f"🕒 **Godzina:** {article['time']}\n"
+
     embed = {
         "title": f"📊 {article['title']}",
         "url": article["link"],
         "description": (
             f"🌐 **Źródło:** XTB – Aktualności Rynkowe\n"
-            + (f"🕒 **Godzina:** {article['time']}\n" if article["time"] else "")
+            + when_line
             + f"\n🔗 [Otwórz oryginał]({article['link']})"
         ),
         "color": 0xE30613,
@@ -239,10 +295,23 @@ def main():
         if article["id"] in already_sent:
             continue
 
-        send_to_discord(article)
+        try:
+            published_date = fetch_published_date(article["link"])
+        except Exception as error:
+            print(f"  Błąd pobierania daty dla {article['link']}: {error}")
+            published_date = None
+
         time.sleep(1)
 
+        # Oceniony (wysłany albo nie) -> nie sprawdzamy go ponownie jutro.
         new_ids.append(article["id"])
+
+        if not is_recent_enough(published_date):
+            print(f"  Pomijam (przed cutoffem 2026-08-01): {article['title'][:80]}")
+            continue
+
+        send_to_discord(article, published_date)
+        time.sleep(1)
 
     print("Zapisuję stan...")
     persist_seen_ids(new_ids)
