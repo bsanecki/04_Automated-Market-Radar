@@ -14,9 +14,9 @@
     "https://www.bankier.pl/wiadomosc/Dzwignia-nie-wybacza-Jak-stracic-na-kryptowalutach-w-trzech-krokach-9181651.html"
   ],
   "price_alert": {
-    "direction": null,
-    "last_change_pct": 3.5700462184694985,
-    "last_price": 67070,
-    "updated_at": "2026-08-19T15:27:52.483680Z"
+    "direction": "up",
+    "last_change_pct": 6.314543978327121,
+    "last_price": 68758,
+    "updated_at": "2026-08-19T16:27:41.908016Z"
   }
 }
