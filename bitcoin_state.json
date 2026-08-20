@@ -16,9 +16,9 @@
     "https://www.bankier.pl/wiadomosc/Bitcoin-o-krok-od-70-tys-USD-Ethereum-zyskuje-18-Waszyngton-odpalil-cyfrowy-rajd-9184726.html"
   ],
   "price_alert": {
-    "direction": "up",
-    "last_change_pct": 5.814964219057474,
-    "last_price": 72667,
-    "updated_at": "2026-08-20T20:24:09.684293Z"
+    "direction": null,
+    "last_change_pct": 4.409658973038313,
+    "last_price": 72724,
+    "updated_at": "2026-08-20T21:24:21.917119Z"
   }
 }
