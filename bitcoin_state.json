@@ -17,9 +17,9 @@
     "https://www.bankier.pl/wiadomosc/Bitcoin-kontynuuje-rajd-Trzy-zielone-swiece-i-kolejny-miliard-wycietych-shortow-9185329.html"
   ],
   "price_alert": {
-    "direction": "up",
-    "last_change_pct": 5.739364367943488,
-    "last_price": 78724,
-    "updated_at": "2026-08-22T03:38:32.397114Z"
+    "direction": null,
+    "last_change_pct": 4.969896453654763,
+    "last_price": 78526,
+    "updated_at": "2026-08-22T04:29:08.568997Z"
   }
 }
