@@ -21,9 +21,9 @@
     "https://www.bankier.pl/wiadomosc/Przestepca-cofa-panstwu-darowizne-w-bitcoinach-warta-45-mln-dolarow-Jestescie-niewdzieczni-9190593.html"
   ],
   "price_alert": {
-    "direction": null,
-    "last_change_pct": 4.828012264562117,
-    "last_price": 80978,
-    "updated_at": "2026-09-03T16:54:29.932710Z"
+    "direction": "up",
+    "last_change_pct": 5.594411312989274,
+    "last_price": 81416,
+    "updated_at": "2026-09-03T19:37:54.756579Z"
   }
 }
