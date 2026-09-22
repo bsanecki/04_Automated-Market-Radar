@@ -25,9 +25,9 @@
     "https://www.bankier.pl/wiadomosc/Zryw-na-rynku-kryptowalut-Bitcoin-najwyzej-od-poczatku-roku-pomimo-trudnego-tygodnia-9200030.html"
   ],
   "price_alert": {
-    "direction": "up",
-    "last_change_pct": 5.761873723547222,
-    "last_price": 86425,
-    "updated_at": "2026-09-22T00:34:38.462276Z"
+    "direction": null,
+    "last_change_pct": 4.830469215276702,
+    "last_price": 85485,
+    "updated_at": "2026-09-22T05:50:02.905091Z"
   }
 }
