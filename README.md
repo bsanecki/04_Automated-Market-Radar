@@ -16,3 +16,9 @@ The project monitors selected financial news and market data and sends new updat
 ## Technologies
 
 Python • GitHub Actions • REST APIs • Web Scraping • Discord Webhooks
+
+## Discord Preview
+
+![Discord Preview 1](screens/screen_1.png)
+
+![Discord Preview 2](screens/screen_2.png)
