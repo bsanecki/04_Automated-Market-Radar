@@ -30,9 +30,9 @@
     "https://www.bankier.pl/wiadomosc/Widmo-kryzysu-w-Europie-i-poszukiwanie-okazji-w-USA-Co-mowi-Wall-Street-9217985.html"
   ],
   "price_alert": {
-    "direction": "down",
-    "last_change_pct": -5.280416677951858,
-    "last_price": 76815,
-    "updated_at": "2026-10-30T00:34:35.782304Z"
+    "direction": null,
+    "last_change_pct": -1.8478996329403858,
+    "last_price": 78453,
+    "updated_at": "2026-10-30T06:46:15.597567Z"
   }
 }
